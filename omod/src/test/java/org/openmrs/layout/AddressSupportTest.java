@@ -9,6 +9,7 @@
  */
 package org.openmrs.layout;
 
+import java.lang.reflect.Field;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
@@ -20,6 +21,7 @@ import org.openmrs.layout.address.AddressTemplate;
 import org.openmrs.test.Verifies;
 import org.openmrs.util.OpenmrsConstants;
 import org.openmrs.web.test.jupiter.BaseModuleWebContextSensitiveTest;
+import org.springframework.test.context.transaction.AfterTransaction;
 
 public class AddressSupportTest extends BaseModuleWebContextSensitiveTest {
 	
@@ -48,5 +50,16 @@ public class AddressSupportTest extends BaseModuleWebContextSensitiveTest {
 		List<AddressTemplate> addressTemplates = addressSupport.getAddressTemplate();
 		Assertions.assertNotNull(addressTemplates.get(0));
 	}
-	
+
+	// AddressSupport caches the template in a static singleton that outlives the test's
+	// transaction rollback. Null the cache after rollback so it lazy-loads from the restored
+	// global property on the next call; otherwise later tests inherit the test's required-fields
+	// template and fail PersonAddress validation. No public reset API, hence reflection.
+	@AfterTransaction
+	public void resetAddressSupportSingleton() throws Exception {
+		Field field = AddressSupport.class.getSuperclass().getDeclaredField("layoutTemplates");
+		field.setAccessible(true);
+		field.set(AddressSupport.getInstance(), null);
+	}
+
 }
